@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentiment Analysis Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0F0F10;--surface:#1A1A1E;--surface2:#222228;--border:rgba(255,255,255,0.07);--ink:#F2F0EA;--muted:rgba(242,240,234,0.5);--faint:rgba(242,240,234,0.2);--green:#4ADE80;--green-dim:rgba(74,222,128,0.1);--red:#F87171;--red-dim:rgba(248,113,113,0.1);--amber:#FBBF24;--amber-dim:rgba(251,191,36,0.1);--blue:#60A5FA;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:58px;background:rgba(15,15,16,0.9);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.nav-logo{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;color:var(--ink);}
+.nav-logo span{color:var(--green);}
+.nav-tabs{display:flex;gap:4px;}
+.nav-tab{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:6px 14px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all 0.2s;}
+.nav-tab.active{background:rgba(74,222,128,0.12);color:var(--green);}
+.nav-tab:hover{color:var(--ink);}
+
+.container{max-width:960px;margin:0 auto;padding:2rem;}
+
+/* PAGE SECTIONS */
+.page{display:none;}
+.page.active{display:block;}
+
+/* HERO */
+.hero{text-align:center;margin-bottom:2.5rem;padding-top:1rem;}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);border:1px solid rgba(74,222,128,0.2);background:var(--green-dim);padding:5px 12px;border-radius:100px;margin-bottom:1.25rem;}
+.hero-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);animation:blink 2s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.hero h1{font-size:clamp(24px,4vw,42px);font-weight:700;letter-spacing:-0.02em;margin-bottom:0.6rem;}
+.hero h1 span{color:var(--green);}
+.hero p{font-size:14px;color:var(--muted);line-height:1.75;max-width:500px;margin:0 auto;}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:2rem;}
+.stat{background:var(--surface);padding:1.1rem;text-align:center;}
+.stat-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--ink);}
+.stat-val span{color:var(--green);}
+.stat-lbl{font-size:10px;color:var(--faint);margin-top:3px;letter-spacing:0.06em;}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.75rem;margin-bottom:1.25rem;}
+.card-label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;}
+
+/* TEXTAREA */
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:'Inter',sans-serif;font-size:14px;color:var(--ink);resize:vertical;min-height:110px;outline:none;transition:border-color 0.2s;line-height:1.7;}
+textarea:focus{border-color:var(--green);}
+textarea::placeholder{color:var(--faint);}
+
+/* BUTTONS */
+.btn-row{display:flex;gap:0.75rem;margin-top:1rem;flex-wrap:wrap;align-items:center;}
+.btn{padding:10px 24px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;border-radius:7px;cursor:pointer;transition:all 0.2s;border:none;letter-spacing:0.01em;}
+.btn-green{background:var(--green);color:#0F0F10;}
+.btn-green:hover{opacity:0.88;}
+.btn-green:disabled{opacity:0.4;cursor:not-allowed;}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--muted);color:var(--ink);}
+
+/* RESULT */
+.result{display:none;margin-top:1.5rem;padding:1.4rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);animation:fadeUp 0.35s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.result.positive{border-color:rgba(74,222,128,0.25);background:rgba(74,222,128,0.04);}
+.result.negative{border-color:rgba(248,113,113,0.25);background:rgba(248,113,113,0.04);}
+.result.neutral{border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.04);}
+.result-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;flex-wrap:wrap;gap:0.5rem;}
+.result-sentiment{display:flex;align-items:center;gap:10px;}
+.sentiment-emoji{font-size:26px;}
+.sentiment-label{font-size:20px;font-weight:700;letter-spacing:-0.01em;}
+.positive .sentiment-label{color:var(--green);}
+.negative .sentiment-label{color:var(--red);}
+.neutral .sentiment-label{color:var(--amber);}
+.conf-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 11px;border-radius:100px;font-weight:500;}
+.positive .conf-badge{background:var(--green-dim);color:var(--green);}
+.negative .conf-badge{background:var(--red-dim);color:var(--red);}
+.neutral .conf-badge{background:var(--amber-dim);color:var(--amber);}
+.scores{display:flex;flex-direction:column;gap:7px;margin-bottom:1rem;}
+.score-row{display:flex;align-items:center;gap:10px;}
+.score-name{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:68px;}
+.score-bar-wrap{flex:1;height:5px;background:rgba(255,255,255,0.05);border-radius:100px;overflow:hidden;}
+.score-bar{height:100%;border-radius:100px;transition:width 0.6s ease;}
+.score-bar.positive{background:var(--green);}
+.score-bar.negative{background:var(--red);}
+.score-bar.neutral{background:var(--amber);}
+.score-pct{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:36px;text-align:right;}
+.top-words{display:flex;flex-wrap:wrap;gap:5px;}
+.word-tag{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);}
+
+/* EXAMPLES */
+.examples-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;}
+.example-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.875rem;cursor:pointer;transition:all 0.2s;}
+.example-card:hover{border-color:rgba(255,255,255,0.15);background:var(--surface2);}
+.ex-type{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.1em;margin-bottom:0.4rem;}
+.ex-type.pos{color:var(--green);}
+.ex-type.neg{color:var(--red);}
+.ex-type.neu{color:var(--amber);}
+.ex-text{font-size:12px;color:var(--muted);line-height:1.6;}
+
+/* ============== DATASET PAGE ============== */
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:3rem 2rem;text-align:center;cursor:pointer;transition:all 0.25s;position:relative;}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--green);background:var(--green-dim);}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:40px;margin-bottom:1rem;}
+.upload-title{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:0.4rem;}
+.upload-sub{font-size:13px;color:var(--muted);}
+.upload-hint{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--faint);margin-top:0.75rem;letter-spacing:0.08em;}
+
+/* COLUMN MAPPER */
+.col-mapper{display:none;margin-top:1.25rem;}
+.col-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;}
+.col-group label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.1em;color:var(--muted);display:block;margin-bottom:6px;}
+select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);outline:none;cursor:pointer;}
+select:focus{border-color:var(--green);}
+
+/* PROGRESS */
+.progress-wrap{display:none;margin-top:1rem;}
+.progress-bar-bg{height:6px;background:rgba(255,255,255,0.06);border-radius:100px;overflow:hidden;margin-bottom:8px;}
+.progress-bar{height:100%;background:var(--green);border-radius:100px;width:0%;transition:width 0.3s ease;}
+.progress-text{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
+
+/* DASHBOARD */
+.dashboard{display:none;margin-top:1.5rem;}
+
+.dash-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.25rem;}
+.dash-stat{background:var(--surface);padding:1.1rem;text-align:center;}
+.dash-stat-val{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;}
+.dash-stat-val.pos{color:var(--green);}
+.dash-stat-val.neg{color:var(--red);}
+.dash-stat-val.neu{color:var(--amber);}
+.dash-stat-val.tot{color:var(--ink);}
+.dash-stat-lbl{font-size:10px;color:var(--faint);margin-top:3px;letter-spacing:0.06em;}
+
+/* BAR CHART */
+.bar-chart{display:flex;align-items:flex-end;gap:10px;height:120px;padding:0 0.5rem;margin-bottom:0.5rem;}
+.bar-col{display:flex;flex-direction:column;align-items:center;flex:1;height:100%;justify-content:flex-end;}
+.bar-fill{width:100%;border-radius:4px 4px 0 0;transition:height 0.8s ease;min-height:4px;}
+.bar-fill.pos{background:var(--green);}
+.bar-fill.neg{background:var(--red);}
+.bar-fill.neu{background:var(--amber);}
+.bar-label{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--faint);margin-top:5px;letter-spacing:0.06em;}
+.bar-count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:4px;}
+
+/* CONFIDENCE DIST */
+.conf-dist{display:flex;gap:4px;height:40px;border-radius:6px;overflow:hidden;margin-bottom:0.75rem;}
+.conf-segment{display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(15,15,16,0.7);font-weight:600;transition:width 0.8s ease;}
+
+/* RESULTS TABLE */
+.results-table-wrap{max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+.results-table{width:100%;border-collapse:collapse;font-size:13px;}
+.results-table th{background:var(--surface2);padding:10px 12px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:var(--faint);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;}
+.results-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.results-table tr:last-child td{border-bottom:none;}
+.results-table tr:hover td{background:rgba(255,255,255,0.02);}
+.badge{display:inline-flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500;}
+.badge.positive{background:var(--green-dim);color:var(--green);}
+.badge.negative{background:var(--red-dim);color:var(--red);}
+.badge.neutral{background:var(--amber-dim);color:var(--amber);}
+.conf-mini{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--faint);}
+.text-preview{color:var(--muted);max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* FILTER ROW */
+.filter-row{display:flex;gap:0.75rem;margin-bottom:1rem;align-items:center;flex-wrap:wrap;}
+.filter-btn{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;padding:5px 12px;border-radius:100px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all 0.2s;}
+.filter-btn:hover{border-color:var(--muted);color:var(--ink);}
+.filter-btn.active.all{border-color:var(--ink);color:var(--ink);}
+.filter-btn.active.positive{border-color:var(--green);color:var(--green);background:var(--green-dim);}
+.filter-btn.active.negative{border-color:var(--red);color:var(--red);background:var(--red-dim);}
+.filter-btn.active.neutral{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+.search-input{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);outline:none;flex:1;min-width:160px;}
+.search-input:focus{border-color:var(--green);}
+.search-input::placeholder{color:var(--faint);}
+
+/* EXPORT */
+.export-btn{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;padding:6px 14px;border-radius:6px;cursor:pointer;border:1px solid rgba(74,222,128,0.25);background:var(--green-dim);color:var(--green);transition:all 0.2s;}
+.export-btn:hover{background:var(--green);color:#0F0F10;}
+
+/* PIPELINE */
+.pipeline{display:flex;align-items:center;gap:0;overflow-x:auto;padding:0.75rem 0;margin-bottom:1.5rem;}
+.pipe-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.75rem 0.875rem;min-width:110px;text-align:center;flex-shrink:0;}
+.pipe-icon{font-size:16px;margin-bottom:3px;}
+.pipe-name{font-size:11px;font-weight:600;color:var(--ink);}
+.pipe-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--faint);margin-top:1px;}
+.pipe-arrow{color:var(--faint);font-size:16px;padding:0 4px;flex-shrink:0;}
+
+/* MODEL METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.m-cell{background:var(--surface);padding:1rem;text-align:center;}
+.m-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;color:var(--green);}
+.m-lbl{font-size:10px;color:var(--faint);margin-top:3px;letter-spacing:0.06em;}
+
+footer{border-top:1px solid var(--border);padding:1.5rem 2rem;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--faint);letter-spacing:0.08em;margin-top:2rem;}
+
+@media(max-width:640px){.stats,.dash-stats,.metrics-grid{grid-template-columns:1fr 1fr;}.examples-grid{grid-template-columns:1fr;}.col-grid{grid-template-columns:1fr;}.nav-tabs .nav-tab{font-size:9px;padding:5px 10px;}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">sentiment<span>.</span>ai</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('analyzer')">Analyzer</button>
+    <button class="nav-tab" onclick="switchTab('dataset')">Dataset</button>
+    <button class="nav-tab" onclick="switchTab('model')">Model</button>
+  </div>
+</nav>
+
+<!-- ===== ANALYZER PAGE ===== -->
+<div class="page active" id="page-analyzer">
+<div class="container">
+
+  <div class="hero">
+    <div class="hero-badge">ML Pipeline · NLP · Scikit-learn</div>
+    <h1>Product Review <span>Sentiment</span> Analysis</h1>
+    <p>End-to-end Python ML pipeline — TF-IDF vectorization + Logistic Regression. Upload your own dataset on the Dataset tab.</p>
+  </div>
+
+
+
+  <div class="card">
+    <div class="card-label">Pipeline Architecture</div>
+    <div class="pipeline">
+      <div class="pipe-step"><div class="pipe-icon">🌐</div><div class="pipe-name">Scraper</div><div class="pipe-sub">BS4 + Selenium</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-icon">🧹</div><div class="pipe-name">Preprocessor</div><div class="pipe-sub">Tokenize · Filter</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-icon">🔢</div><div class="pipe-name">TF-IDF</div><div class="pipe-sub">Feature Eng.</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-icon">🤖</div><div class="pipe-name">Classifier</div><div class="pipe-sub">Logistic Reg.</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-icon">🗄️</div><div class="pipe-name">PostgreSQL</div><div class="pipe-sub">Store Results</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-icon">📊</div><div class="pipe-name">Dashboard</div><div class="pipe-sub">Tableau</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Single Review — Try It</div>
+    <textarea id="reviewText" placeholder='Type or paste a product review...&#10;&#10;e.g. "This is absolutely amazing, works perfectly. Highly recommend!"'></textarea>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="analyze()" id="analyzeBtn">Analyze</button>
+      <button class="btn btn-ghost" onclick="clearSingle()">Clear</button>
+    </div>
+    <div class="result" id="result">
+      <div class="result-top">
+        <div class="result-sentiment">
+          <div class="sentiment-emoji" id="emoji"></div>
+          <div class="sentiment-label" id="sentLabel"></div>
+        </div>
+        <div class="conf-badge" id="confBadge"></div>
+      </div>
+      <div class="scores" id="scores"></div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--faint);letter-spacing:0.1em;margin-bottom:5px;">KEY TOKENS</div>
+      <div class="top-words" id="topWords"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Quick Examples</div>
+    <div class="examples-grid">
+      <div class="example-card" onclick="tryEx(this.querySelector('.ex-text').innerText)">
+        <div class="ex-type pos">POSITIVE</div>
+        <div class="ex-text">Absolutely love this product! Works perfectly, arrived quickly, and the quality is outstanding. Five stars without hesitation.</div>
+      </div>
+      <div class="example-card" onclick="tryEx(this.querySelector('.ex-text').innerText)">
+        <div class="ex-type neg">NEGATIVE</div>
+        <div class="ex-text">Complete waste of money. Broke after two days and the customer service was useless. Would not recommend to anyone.</div>
+      </div>
+      <div class="example-card" onclick="tryEx(this.querySelector('.ex-text').innerText)">
+        <div class="ex-type neu">NEUTRAL</div>
+        <div class="ex-text">Product is okay. It does what it's supposed to do but nothing special. Average quality for the price paid.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ===== DATASET PAGE ===== -->
+<div class="page" id="page-dataset">
+<div class="container">
+
+  <div class="hero">
+    <div class="hero-badge">Upload · Analyze · Visualize</div>
+    <h1>Dataset <span>Analysis</span></h1>
+    <p>Upload any CSV with reviews and get a full sentiment dashboard — distribution charts, confidence scores, and a filterable results table.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Upload CSV Dataset</div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="csvFile" accept=".csv" onchange="handleFile(this.files[0])">
+      <div class="upload-icon">📂</div>
+      <div class="upload-title">Drop your CSV here or click to browse</div>
+      <div class="upload-sub">Any CSV with review text and optional star ratings</div>
+      <div class="upload-hint">SUPPORTED: Amazon Reviews · Custom Datasets · Any CSV</div>
+    </div>
+
+    <!-- COLUMN MAPPER -->
+    <div class="col-mapper" id="colMapper">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--green);letter-spacing:0.1em;margin-bottom:0.75rem;" id="fileInfo"></div>
+      <div class="col-grid">
+        <div class="col-group">
+          <label>TEXT COLUMN (reviews)</label>
+          <select id="textCol"></select>
+        </div>
+        <div class="col-group">
+          <label>SCORE COLUMN (optional — for accuracy check)</label>
+          <select id="scoreCol"><option value="">— None —</option></select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="runDataset()" id="runBtn">Run Analysis</button>
+        <button class="btn btn-ghost" onclick="resetUpload()">Reset</button>
+        <span id="rowCount" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);"></span>
+      </div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText">Analyzing...</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard" id="dashboard">
+
+    <!-- Summary stats -->
+    <div class="dash-stats">
+      <div class="dash-stat"><div class="dash-stat-val tot" id="dTotal">—</div><div class="dash-stat-lbl">TOTAL REVIEWS</div></div>
+      <div class="dash-stat"><div class="dash-stat-val pos" id="dPos">—</div><div class="dash-stat-lbl">POSITIVE</div></div>
+      <div class="dash-stat"><div class="dash-stat-val neg" id="dNeg">—</div><div class="dash-stat-lbl">NEGATIVE</div></div>
+      <div class="dash-stat"><div class="dash-stat-val neu" id="dNeu">—</div><div class="dash-stat-lbl">NEUTRAL</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+      <!-- Bar chart -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-label">Sentiment Distribution</div>
+        <div class="bar-chart" id="barChart"></div>
+        <div style="display:flex;justify-content:space-around;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--green);">POSITIVE</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--red);">NEGATIVE</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--amber);">NEUTRAL</span>
+        </div>
+      </div>
+
+      <!-- Confidence distribution -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-label">Confidence Distribution</div>
+        <div style="margin-bottom:0.75rem;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:0.5rem;">Average confidence by class</div>
+          <div class="scores" id="avgConf"></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:0.5rem;">Confidence buckets (all reviews)</div>
+        <div class="conf-dist" id="confDist"></div>
+        <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--faint);">
+          <span>LOW &lt;60%</span><span>MED 60-80%</span><span>HIGH &gt;80%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results table -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.75rem;">
+        <div class="card-label" style="margin-bottom:0;">Results — <span id="tableCount">—</span> rows</div>
+        <button class="export-btn" onclick="exportCSV()">Export CSV ↓</button>
+      </div>
+      <div class="filter-row">
+        <button class="filter-btn active all" onclick="filterTable('all', this)">ALL</button>
+        <button class="filter-btn positive" onclick="filterTable('positive', this)">POSITIVE</button>
+        <button class="filter-btn negative" onclick="filterTable('negative', this)">NEGATIVE</button>
+        <button class="filter-btn neutral" onclick="filterTable('neutral', this)">NEUTRAL</button>
+        <input class="search-input" type="text" placeholder="Search reviews..." oninput="searchTable(this.value)" id="searchInput">
+      </div>
+      <div class="results-table-wrap">
+        <table class="results-table" id="resultsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Review</th>
+              <th>Sentiment</th>
+              <th>Confidence</th>
+              <th>Pos</th>
+              <th>Neg</th>
+              <th>Neu</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+<!-- ===== MODEL PAGE ===== -->
+<div class="page" id="page-model">
+<div class="container">
+
+  <div class="hero">
+    <div class="hero-badge">Training · Evaluation · Cross-Validation</div>
+    <h1>Model <span>Metrics</span></h1>
+    <p>Real performance metrics from training on your dataset. Upload a CSV on the Dataset tab to see actual numbers.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Performance Metrics</div>
+    <div class="metrics-grid" id="metricsGrid">
+      <div class="m-cell"><div class="m-val" id="mAcc">—</div><div class="m-lbl">ACCURACY</div></div>
+      <div class="m-cell"><div class="m-val" id="mF1">—</div><div class="m-lbl">F1-SCORE</div></div>
+      <div class="m-cell"><div class="m-val" id="mPrec">—</div><div class="m-lbl">PRECISION</div></div>
+      <div class="m-cell"><div class="m-val" id="mRec">—</div><div class="m-lbl">RECALL</div></div>
+    </div>
+  </div>
+
+  <div class="card" id="cvCard">
+    <div class="card-label">Cross-Validation (5-Fold)</div>
+    <div id="cvInfo" style="font-size:14px;color:var(--muted);line-height:1.8;"></div>
+  </div>
+
+  <div class="card" id="classCard">
+    <div class="card-label">Class Distribution</div>
+    <div id="classInfo" style="font-size:14px;color:var(--muted);line-height:1.8;"></div>
+  </div>
+
+  <div class="card" id="reportCard" style="display:none;">
+    <div class="card-label">Full Classification Report</div>
+    <pre id="reportPre" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);line-height:1.7;overflow-x:auto;white-space:pre;"></pre>
+  </div>
+
+</div>
+</div>
+
+<footer>SENTIMENT ANALYSIS PIPELINE · PYTHON · SCIKIT-LEARN · TF-IDF · FASTAPI · <a href="https://github.com/marrivishwanth24/sentiment-mining-pipeline" style="color:var(--faint);text-decoration:none;">GitHub ↗</a></footer>
+
+<script>
+const API = window.location.origin;
+const EMOJIS = {positive:'😊', negative:'😞', neutral:'😐'};
+const LABELS  = {positive:'Positive', negative:'Negative', neutral:'Neutral'};
+
+let allResults   = [];
+let currentFilter = 'all';
+let csvHeaders   = [];
+let csvRows      = [];
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── LOAD METRICS ON START ─────────────────────────────────────────────────────
+async function loadMetrics() {
+  try {
+    const res  = await fetch(`${API}/metrics`);
+    const data = await res.json();
+
+    // Hero stats
+    if (data.accuracy && data.accuracy !== 'N/A') {
+      document.getElementById('sAcc').innerHTML    = data.accuracy + '<span>%</span>';
+      document.getElementById('sF1').innerHTML     = data.f1 + '<span>%</span>';
+      document.getElementById('sSamples').innerHTML = (data.total_samples || '—').toLocaleString();
+      document.getElementById('sVocab').innerHTML  = (data.vocabulary_size || '—').toLocaleString();
+
+      // Model page
+      document.getElementById('mAcc').textContent  = data.accuracy + '%';
+      document.getElementById('mF1').textContent   = data.f1 + '%';
+      document.getElementById('mPrec').textContent = data.precision + '%';
+      document.getElementById('mRec').textContent  = data.recall + '%';
+
+      if (data.cv_f1_mean) {
+        document.getElementById('cvInfo').innerHTML =
+          `Mean F1 (5-fold): <strong style="color:var(--green)">${data.cv_f1_mean}%</strong> ± ${data.cv_f1_std}%<br>
+           Train size: ${(data.train_size||0).toLocaleString()} &nbsp;|&nbsp; Test size: ${(data.test_size||0).toLocaleString()}`;
+      }
+
+      if (data.class_distribution) {
+        const cd = data.class_distribution;
+        document.getElementById('classInfo').innerHTML = Object.entries(cd)
+          .map(([k,v]) => `<span style="color:${k==='positive'?'var(--green)':k==='negative'?'var(--red)':'var(--amber)'}">${k}</span>: ${v.toLocaleString()}`)
+          .join('&nbsp;&nbsp;|&nbsp;&nbsp;');
+      }
+
+      if (data.report) {
+        document.getElementById('reportCard').style.display = 'block';
+        document.getElementById('reportPre').textContent = data.report;
+      }
+    } else {
+      document.getElementById('sAcc').textContent = 'N/A';
+      document.getElementById('sF1').textContent  = 'N/A';
+      document.getElementById('sSamples').textContent = 'Seed';
+      document.getElementById('sVocab').textContent = '—';
+      document.getElementById('cvInfo').textContent   = 'No real dataset loaded — add data/reviews.csv and restart server.';
+      document.getElementById('classInfo').textContent = 'Upload a CSV on the Dataset tab to see class distribution.';
+    }
+  } catch(e) {
+    console.warn('Could not load metrics', e);
+  }
+}
+
+// ── SINGLE REVIEW ─────────────────────────────────────────────────────────────
+async function analyze() {
+  const text = document.getElementById('reviewText').value.trim();
+  if (!text) { alert('Please enter a review'); return; }
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const res  = await fetch(`${API}/analyze`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    showResult(await res.json());
+  } catch(e) { alert('Error — check server connection'); }
+  finally { btn.disabled = false; btn.textContent = 'Analyze'; }
+}
+
+function showResult(data) {
+  const el = document.getElementById('result');
+  const s  = data.sentiment;
+  el.className = `result ${s}`;
+  document.getElementById('emoji').textContent    = EMOJIS[s];
+  document.getElementById('sentLabel').textContent = LABELS[s];
+  document.getElementById('confBadge').textContent = `${data.confidence}% confidence`;
+
+  const order = ['positive','negative','neutral'];
+  document.getElementById('scores').innerHTML = order.map(cls => `
+    <div class="score-row">
+      <div class="score-name">${cls}</div>
+      <div class="score-bar-wrap"><div class="score-bar ${cls}" style="width:${data.scores[cls]||0}%"></div></div>
+      <div class="score-pct">${data.scores[cls]||0}%</div>
+    </div>`).join('');
+
+  document.getElementById('topWords').innerHTML =
+    (data.top_words||[]).map(w=>`<span class="word-tag">${w}</span>`).join('');
+
+  el.style.display = 'block';
+  el.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function clearSingle() {
+  document.getElementById('reviewText').value = '';
+  document.getElementById('result').style.display = 'none';
+}
+
+function tryEx(text) {
+  document.getElementById('reviewText').value = text;
+  switchTab('analyzer');
+  document.querySelectorAll('.nav-tab')[0].classList.add('active');
+  document.querySelectorAll('.nav-tab')[1].classList.remove('active');
+  document.querySelectorAll('.nav-tab')[2].classList.remove('active');
+  analyze();
+}
+
+// ── DRAG AND DROP ─────────────────────────────────────────────────────────────
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+// ── CSV HANDLER ───────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file || !file.name.endsWith('.csv')) { alert('Please upload a CSV file'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    if (lines.length < 2) { alert('CSV must have at least a header and one row'); return; }
+
+    csvHeaders = parseCSVLine(lines[0]);
+    csvRows    = lines.slice(1).map(parseCSVLine).filter(r => r.length === csvHeaders.length);
+
+    // Populate column selectors
+    const textSel  = document.getElementById('textCol');
+    const scoreSel = document.getElementById('scoreCol');
+    textSel.innerHTML  = csvHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
+    scoreSel.innerHTML = '<option value="">— None —</option>' +
+      csvHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
+
+    // Auto-detect columns
+    const textGuess  = csvHeaders.findIndex(h => /text|review|comment|body|content/i.test(h));
+    const scoreGuess = csvHeaders.findIndex(h => /score|rating|stars|label|sentiment/i.test(h));
+    if (textGuess  >= 0) textSel.value  = textGuess;
+    if (scoreGuess >= 0) scoreSel.value = scoreGuess;
+
+    document.getElementById('fileInfo').textContent =
+      `✅ ${file.name} — ${csvRows.length.toLocaleString()} rows · ${csvHeaders.length} columns`;
+    document.getElementById('rowCount').textContent =
+      `${Math.min(csvRows.length, 500)} rows will be analyzed`;
+    document.getElementById('colMapper').style.display = 'block';
+    document.getElementById('dashboard').style.display = 'none';
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVLine(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function resetUpload() {
+  document.getElementById('csvFile').value = '';
+  document.getElementById('colMapper').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('progressWrap').style.display = 'none';
+  csvHeaders = []; csvRows = []; allResults = [];
+}
+
+// ── DATASET ANALYSIS ──────────────────────────────────────────────────────────
+async function runDataset() {
+  const textIdx  = parseInt(document.getElementById('textCol').value);
+  const scoreIdx = document.getElementById('scoreCol').value;
+  const texts    = csvRows.slice(0, 500).map(r => r[textIdx]).filter(t => t && t.trim());
+
+  if (!texts.length) { alert('No text found in selected column'); return; }
+
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+
+  const BATCH = 20;
+  allResults = [];
+  let done = 0;
+
+  for (let i = 0; i < texts.length; i += BATCH) {
+    const chunk = texts.slice(i, i + BATCH);
+    try {
+      const res  = await fetch(`${API}/batch`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(chunk)
+      });
+      const data = await res.json();
+      allResults.push(...data.results);
+    } catch(e) { console.error('Batch error', e); }
+
+    done = Math.min(i + BATCH, texts.length);
+    const pct = Math.round(done / texts.length * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressText').textContent =
+      `Analyzing... ${done} / ${texts.length} reviews (${pct}%)`;
+
+    await new Promise(r => setTimeout(r, 10));
+  }
+
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('runBtn').disabled = false;
+  renderDashboard();
+}
+
+// ── DASHBOARD RENDER ──────────────────────────────────────────────────────────
+function renderDashboard() {
+  const counts = {positive:0, negative:0, neutral:0};
+  const confByClass = {positive:[], negative:[], neutral:[]};
+  allResults.forEach(r => {
+    counts[r.sentiment]++;
+    confByClass[r.sentiment].push(r.confidence);
+  });
+
+  const total = allResults.length;
+  document.getElementById('dTotal').textContent = total.toLocaleString();
+  document.getElementById('dPos').textContent   = counts.positive.toLocaleString();
+  document.getElementById('dNeg').textContent   = counts.negative.toLocaleString();
+  document.getElementById('dNeu').textContent   = counts.neutral.toLocaleString();
+
+  // Bar chart
+  const maxCount = Math.max(...Object.values(counts));
+  document.getElementById('barChart').innerHTML = ['positive','negative','neutral'].map(cls => {
+    const h = maxCount > 0 ? Math.round(counts[cls] / maxCount * 100) : 0;
+    return `<div class="bar-col">
+      <div class="bar-count">${counts[cls]}</div>
+      <div class="bar-fill ${cls.slice(0,3)}" style="height:${h}%"></div>
+    </div>`;
+  }).join('');
+
+  // Avg confidence bars
+  document.getElementById('avgConf').innerHTML = ['positive','negative','neutral'].map(cls => {
+    const arr = confByClass[cls];
+    const avg = arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+    return `<div class="score-row">
+      <div class="score-name">${cls}</div>
+      <div class="score-bar-wrap"><div class="score-bar ${cls}" style="width:${avg}%"></div></div>
+      <div class="score-pct">${avg}%</div>
+    </div>`;
+  }).join('');
+
+  // Confidence buckets
+  let low=0, med=0, high=0;
+  allResults.forEach(r => {
+    if (r.confidence < 60) low++;
+    else if (r.confidence < 80) med++;
+    else high++;
+  });
+  const segColors = ['rgba(248,113,113,0.7)','rgba(251,191,36,0.7)','rgba(74,222,128,0.7)'];
+  document.getElementById('confDist').innerHTML = [[low,'LOW'],[med,'MED'],[high,'HIGH']].map(([n,l],i) => {
+    const w = total > 0 ? Math.round(n/total*100) : 0;
+    return w > 0
+      ? `<div class="conf-segment" style="width:${w}%;background:${segColors[i]}">${w>8?l:''}</div>`
+      : '';
+  }).join('');
+
+  renderTable(allResults);
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('dashboard').scrollIntoView({behavior:'smooth'});
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────────
+function renderTable(data) {
+  document.getElementById('tableCount').textContent = data.length.toLocaleString();
+  document.getElementById('tableBody').innerHTML = data.map((r,i) => `
+    <tr>
+      <td style="color:var(--faint);font-family:'JetBrains Mono',monospace;font-size:11px;">${i+1}</td>
+      <td><div class="text-preview">${escHtml(r.text)}</div></td>
+      <td><span class="badge ${r.sentiment}">${EMOJIS[r.sentiment]} ${LABELS[r.sentiment]}</span></td>
+      <td><span class="conf-mini">${r.confidence}%</span></td>
+      <td style="color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;">${r.scores?.positive||0}%</td>
+      <td style="color:var(--red);font-family:'JetBrains Mono',monospace;font-size:11px;">${r.scores?.negative||0}%</td>
+      <td style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;">${r.scores?.neutral||0}%</td>
+    </tr>`).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function filterTable(cls, btn) {
+  currentFilter = cls;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function searchTable(q) { applyFilters(q); }
+
+function applyFilters(q = document.getElementById('searchInput').value) {
+  let data = allResults;
+  if (currentFilter !== 'all') data = data.filter(r => r.sentiment === currentFilter);
+  if (q.trim()) data = data.filter(r => r.text.toLowerCase().includes(q.toLowerCase()));
+  renderTable(data);
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!allResults.length) { alert('No results to export'); return; }
+  const rows = [['text','sentiment','confidence','positive%','negative%','neutral%']];
+  allResults.forEach(r => rows.push([
+    `"${r.text.replace(/"/g,'""')}"`,
+    r.sentiment, r.confidence,
+    r.scores?.positive||0, r.scores?.negative||0, r.scores?.neutral||0
+  ]));
+  const blob = new Blob([rows.map(r=>r.join(',')).join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sentiment_results.csv';
+  a.click();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadMetrics();
+document.getElementById('reviewText').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) analyze();
+});
+</script>
+</body>
+</html>
